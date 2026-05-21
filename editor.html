@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>GameQR Editor</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: 'Courier New', monospace;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    header {
+      background: #161b22;
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-bottom: 1px solid #30363d;
+      flex-shrink: 0;
+    }
+
+    header h1 { font-size: 16px; color: #58a6ff; margin-right: 6px; }
+
+    button {
+      background: #21262d;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      padding: 6px 14px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+    button:hover { background: #30363d; border-color: #8b949e; }
+    button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+    button.primary:hover { background: #388bfd; }
+    button.active { background: #2d333b; border-color: #58a6ff; color: #58a6ff; }
+    button.active:hover { background: #30363d; }
+
+    .layout {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    .editor-col {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      min-width: 0;
+      border-right: 1px solid #30363d;
+    }
+
+    .editor-toolbar {
+      background: #161b22;
+      padding: 6px 12px;
+      font-size: 11px;
+      color: #8b949e;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .code-wrap {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .code-wrap pre,
+    .code-wrap textarea {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      margin: 0;
+      padding: 14px 16px;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.55;
+      tab-size: 2;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+
+    .code-wrap pre {
+      background: #0d1117;
+      color: #c9d1d9;
+      border: none;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .code-wrap textarea {
+      background: transparent;
+      color: transparent;
+      caret-color: #c9d1d9;
+      border: none;
+      outline: none;
+      resize: none;
+      overflow-y: auto;
+      z-index: 1;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .code-wrap textarea::selection {
+      background: rgba(88, 166, 255, 0.25);
+      -webkit-text-fill-color: transparent;
+    }
+    .code-wrap textarea::-webkit-scrollbar,
+    .right-col::-webkit-scrollbar { width: 8px; }
+    .code-wrap textarea::-webkit-scrollbar-track,
+    .right-col::-webkit-scrollbar-track { background: transparent; }
+    .code-wrap textarea::-webkit-scrollbar-thumb,
+    .right-col::-webkit-scrollbar-thumb { background: #30363d; border-radius: 4px; }
+    .code-wrap textarea::-webkit-scrollbar-thumb:hover,
+    .right-col::-webkit-scrollbar-thumb:hover { background: #8b949e; }
+
+    .hl-k { color: #ff7b72; }
+    .hl-s { color: #a5d6ff; }
+    .hl-n { color: #79c0ff; }
+    .hl-c { color: #6e7681; font-style: italic; }
+    .hl-o { color: #d2a8ff; }
+
+    .right-col {
+      width: 340px;
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      overflow-y: auto;
+      background: #0d1117;
+    }
+
+    .section {
+      padding: 14px;
+      border-bottom: 1px solid #30363d;
+    }
+
+    .section-title {
+      font-size: 11px;
+      color: #8b949e;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+    }
+
+    iframe#preview {
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      background: #000;
+      display: block;
+      width: 100%;
+      aspect-ratio: 4/3;
+    }
+
+    #qr-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #qr-box {
+      background: #fff;
+      padding: 10px;
+      border-radius: 6px;
+      display: inline-block;
+    }
+
+    #qr-empty {
+      color: #8b949e;
+      font-size: 12px;
+      padding: 20px;
+      text-align: center;
+      border: 1px dashed #30363d;
+      border-radius: 6px;
+      width: 100%;
+    }
+
+    #url-box {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 4px;
+      padding: 8px;
+      font-size: 10px;
+      color: #8b949e;
+      word-break: break-all;
+      max-height: 80px;
+      overflow-y: auto;
+      width: 100%;
+    }
+
+    #size-info {
+      font-size: 11px;
+      color: #8b949e;
+      display: block;
+      text-align: center;
+      margin-top: 8px;
+    }
+    #size-info.warn { color: #f0883e; }
+    #size-info.ok { color: #3fb950; }
+
+    .api-ref {
+      font-size: 11px;
+      line-height: 1.7;
+      color: #8b949e;
+    }
+    .api-ref code {
+      color: #79c0ff;
+      background: #161b22;
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+    .api-ref .prop { color: #d2a8ff; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>GameQR</h1>
+  <button class="primary" onclick="runGame()">▶ Run</button>
+  <button data-example="new" onclick="loadExample('new')">+ New</button>
+  <button data-example="flappy" onclick="loadExample('flappy')">Flappy</button>
+  <button data-example="maze" onclick="loadExample('maze')">Maze</button>
+  <button data-example="snake" onclick="loadExample('snake')">Snake</button>
+  <button data-example="sokoban" onclick="loadExample('sokoban')">Sokoban</button>
+  <button data-example="flood" onclick="loadExample('flood')">Flood</button>
+  <button data-example="invaders" onclick="loadExample('invaders')">Invaders</button>
+  <button data-example="pong" onclick="loadExample('pong')">Pong</button>
+  <a id="open-player" href="play.html" target="_blank" style="color:#58a6ff;font-size:12px;text-decoration:none;margin-left:auto">Open player ↗</a>
+</header>
+
+<div class="layout">
+
+  <div class="editor-col">
+    <div class="editor-toolbar">
+      <span>game.js</span>
+      <span id="char-count" style="margin-left:auto">0 chars</span>
+    </div>
+    <div class="code-wrap">
+      <pre id="highlight" aria-hidden="true"></pre>
+      <textarea id="code" spellcheck="false" placeholder="// Write your game here using the G engine API&#10;// Press ▶ Run to test, then generate a QR code to share"></textarea>
+    </div>
+  </div>
+
+  <div class="right-col">
+
+    <div class="section">
+      <div class="section-title">Preview</div>
+      <iframe id="preview" scrolling="no" title="Game preview"></iframe>
+    </div>
+
+    <div class="section">
+      <div class="section-title">QR Code</div>
+      <div id="file-warning" hidden style="background:#3a1a00;border:1px solid #f80;border-radius:4px;padding:8px 10px;font-size:11px;color:#f80;line-height:1.6;margin-bottom:8px">
+        ⚠️ Opened from <code style="color:#ffa">file://</code> — QR codes won't open on another device.<br>
+        Serve with a local server or host online for shareable QR codes.
+      </div>
+      <div id="qr-wrap">
+        <div id="qr-empty">Write some code to generate a QR code</div>
+        <div id="qr-box" hidden></div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+        URL
+        <button id="copy-btn" onclick="copyURL()" style="font-size:10px;padding:3px 8px">Copy URL</button>
+      </div>
+      <div id="url-box" hidden></div>
+      <span id="size-info"></span>
+    </div>
+
+    <div class="section">
+      <div class="section-title" style="display:flex;align-items:center;justify-content:space-between">
+        Engine API
+        <button onclick="copyAIPrompt()" id="ai-btn" style="font-size:10px;padding:3px 8px">Copy AI Instructions</button>
+      </div>
+      <div class="api-ref">
+        <b>Setup</b><br>
+        <code>G.init({cols, rows, tileSize, fps})</code><br>
+        <span class="prop">G.tiles</span> = <code>{ '#': {bg, fg, ch, passable} }</code><br>
+        <span class="prop">G.map</span> = array of strings (rows)<br><br>
+        <b>Callbacks</b><br>
+        <code>G.onKey = (key) => {}</code><br>
+        <code>G.onUpdate = () => {}</code><br>
+        <code>G.onDraw = (ctx) => {}</code><br><br>
+        <b>Grid helpers</b><br>
+        <code>G.getCell(x, y)</code> → char<br>
+        <code>G.setCell(x, y, ch)</code><br>
+        <code>G.isPassable(x, y)</code> → bool<br>
+        <code>G.inBounds(x, y)</code> → bool<br>
+        <code>G.findCell(ch)</code> → {x,y} | null<br>
+        <code>G.countCell(ch)</code> → number<br>
+        <code>G.randomEmpty()</code> → {x,y}<br>
+        <code>G.dirFromKey(key)</code> → {dx,dy} | null<br>
+        <code>G.borderedMap(cols, rows)</code> → string[]<br><br>
+        <b>Draw helpers (in onDraw)</b><br>
+        <code>G.text(x, y, str, color, size)</code><br>
+        <code>G.fillTile(tx, ty, color)</code><br>
+        <code>G.state</code> — free object for game data<br>
+        <code>G.start()</code> / <code>G.stop()</code><br><br>
+        <b>Sound</b><br>
+        <code>G.beep(freq, dur, type, vol)</code><br>
+        freq Hz · dur seconds · type: <code>'square'</code> <code>'sine'</code> <code>'sawtooth'</code> · vol 0–1
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="lz-string.min.js?v=1"></script>
+<script src="engine.js?v=3"></script>
+<script src="examples.js?v=9"></script>
+<script src="qrcode.min.js?v=1"></script>
+
+<script>
+  const codeEl = document.getElementById('code');
+  const charCountEl = document.getElementById('char-count');
+  const highlightEl = document.getElementById('highlight');
+
+  function highlight(code) {
+    const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    const KW = /\b(const|let|var|function|return|if|else|for|while|break|continue|new|true|false|null|undefined|of|in|typeof|instanceof)\b/g;
+    let out = '', i = 0;
+    while (i < code.length) {
+      if (code[i] === '/' && code[i+1] === '/') {
+        const end = code.indexOf('\n', i);
+        const chunk = end === -1 ? code.slice(i) : code.slice(i, end);
+        out += `<span class="hl-c">${esc(chunk)}</span>`;
+        i += chunk.length;
+      } else if (code[i] === '`' || code[i] === '"' || code[i] === "'") {
+        const q = code[i]; let j = i + 1;
+        if (q === '`') { while (j < code.length && code[j] !== '`') { if (code[j] === '\\') j++; j++; } }
+        else { while (j < code.length && code[j] !== q && code[j] !== '\n') { if (code[j] === '\\') j++; j++; } }
+        out += `<span class="hl-s">${esc(code.slice(i, j+1))}</span>`;
+        i = j + 1;
+      } else {
+        let j = i;
+        while (j < code.length && !((code[j]==='/'&&code[j+1]==='/') || code[j]==='`' || code[j]==='"' || code[j]==="'")) j++;
+        let t = esc(code.slice(i, j));
+        t = t.replace(KW, '<span class="hl-k">$1</span>');
+        t = t.replace(/\b(\d+(?:\.\d+)?)\b/g, '<span class="hl-n">$1</span>');
+        t = t.replace(/\bG\b/g, '<span class="hl-o">G</span>');
+        out += t;
+        i = j;
+      }
+    }
+    return out || ' ';
+  }
+
+  function updateHighlight() {
+    highlightEl.innerHTML = highlight(codeEl.value) + '\n';
+    highlightEl.scrollTop = codeEl.scrollTop;
+  }
+
+  codeEl.addEventListener('scroll', () => { highlightEl.scrollTop = codeEl.scrollTop; });
+
+  let _debounce;
+  codeEl.addEventListener('input', () => {
+    updateHighlight();
+    charCountEl.textContent = codeEl.value.length + ' chars';
+    clearTimeout(_debounce);
+    _debounce = setTimeout(() => { runGame(); generateQR(); updateOpenPlayer(); }, 700);
+  });
+
+  // Tab key inserts spaces
+  codeEl.addEventListener('keydown', e => {
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const s = codeEl.selectionStart, end = codeEl.selectionEnd;
+      codeEl.value = codeEl.value.slice(0, s) + '  ' + codeEl.value.slice(end);
+      codeEl.selectionStart = codeEl.selectionEnd = s + 2;
+      updateHighlight();
+    }
+  });
+
+  function getPlayBase() {
+    return location.href.replace('editor.html', 'play.html').split('?')[0].split('#')[0];
+  }
+
+  function getPlayURL(code) {
+    return getPlayBase() + '#' + GCode.encode(code);
+  }
+
+  function updateOpenPlayer() {
+    const code = codeEl.value.trim();
+    const el = document.getElementById('open-player');
+    el.href = code ? getPlayURL(code) : getPlayBase();
+  }
+
+  function runGame() {
+    // ?_ forces a full iframe reload even when only the hash changes
+    const url = getPlayBase() + '?_=' + Date.now() + '#' + GCode.encode(codeEl.value);
+    document.getElementById('preview').src = url;
+  }
+
+  let qrInstance = null;
+
+  function generateQR() {
+    const code = codeEl.value.trim();
+    if (!code) return;
+
+    const isFile = location.protocol === 'file:';
+    document.getElementById('file-warning').hidden = !isFile;
+
+    const url = getPlayURL(code);
+    const encoded = GCode.encode(code);
+
+    document.getElementById('url-box').textContent = url;
+    document.getElementById('url-box').hidden = false;
+
+    const sizeEl = document.getElementById('size-info');
+    const chars = encoded.length;
+    sizeEl.textContent = `URL payload: ${chars} chars`;
+    sizeEl.className = chars > 2000 ? 'warn' : chars > 800 ? '' : 'ok';
+
+    const box = document.getElementById('qr-box');
+    box.innerHTML = '';
+    box.hidden = false;
+    document.getElementById('qr-empty').hidden = true;
+
+    const qrSize = 300;
+    try {
+      qrInstance = new QRCode(box, {
+        text: url,
+        width: qrSize,
+        height: qrSize,
+        colorDark: '#000000',
+        colorLight: '#ffffff',
+        correctLevel: QRCode.CorrectLevel.L,
+      });
+    } catch (e) {
+      box.innerHTML = `<div style="color:#f66;padding:12px;font-size:12px">QR too large — shorten your code.<br>${e.message}</div>`;
+    }
+  }
+
+  function copyURL() {
+    const box = document.getElementById('url-box');
+    if (box.hidden || !box.textContent.trim()) {
+      alert('Generate a QR code first.'); return;
+    }
+    const text = box.textContent.trim();
+    const done = () => {
+      const btn = document.getElementById('copy-btn');
+      btn.textContent = '✓ Copied';
+      setTimeout(() => { btn.textContent = 'Copy URL'; }, 1800);
+    };
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text).then(done).catch(() => legacyCopy(text, done));
+    } else {
+      legacyCopy(text, done);
+    }
+  }
+
+  function legacyCopy(text, cb) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    cb();
+  }
+
+  function loadExample(name) {
+    codeEl.value = (GAME_EXAMPLES[name] && GAME_EXAMPLES[name].code) || '';
+    charCountEl.textContent = codeEl.value.length + ' chars';
+    document.querySelectorAll('[data-example]').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.example === name);
+    });
+    updateHighlight();
+    runGame();
+    generateQR();
+    updateOpenPlayer();
+  }
+
+  const AI_PROMPT = `You are helping someone write a mini game using the GameQR engine — a tiny JavaScript game framework where the entire game code is encoded into a QR code URL and runs in the browser.
+
+## The Engine Object: G
+
+All game logic goes through a global object \`G\`. Use \`G.state\` (or \`const s = G.state\`) for all mutable game data.
+
+### Initialization
+\`\`\`js
+G.init({ cols: 20, rows: 15, tileSize: 24, fps: 10 });
+\`\`\`
+- \`cols\`, \`rows\` — grid size in tiles
+- \`tileSize\` — pixels per tile (typically 20–32)
+- \`fps\` — update rate
+
+### Tile Definitions
+\`\`\`js
+G.tiles = {
+  '#': { bg: '#334', passable: false },
+  '.': { bg: '#111' },
+  '@': { bg: '#111', fg: '#4af', ch: '@' },
+};
+\`\`\`
+Each key is a single character. Properties:
+- \`bg\` — background fill color
+- \`fg\` — glyph color
+- \`ch\` — glyph to draw (defaults to the key character if omitted)
+- \`passable\` — false = solid wall (default: true)
+
+### Map
+\`\`\`js
+G.map = [
+  '##########',
+  '#........#',
+  '#...@....#',
+  '##########',
+];
+\`\`\`
+Array of strings, one per row. Every character used must be defined in \`G.tiles\` (or be a space = empty).
+
+### Callbacks
+\`\`\`js
+G.onKey    = (key) => { /* key is e.g. 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' ' */ };
+G.onUpdate = ()    => { /* called every frame before drawing */ };
+G.onDraw   = (ctx) => { /* called every frame after tiles render; ctx is CanvasRenderingContext2D */ };
+\`\`\`
+Mobile swipe is built-in — swipes fire arrow keys automatically. On touch devices a D-pad overlay is shown; each button fires its arrow key. For games that respond to any key (e.g. a flap action), any D-pad button will trigger it. No extra code needed.
+
+### Grid Helpers
+\`\`\`js
+G.getCell(x, y)           // → char at position, or null if out of bounds
+G.setCell(x, y, ch)       // write a char to the map
+G.isPassable(x, y)        // → true if tile allows movement
+G.inBounds(x, y)          // → true if coords are within the grid
+G.findCell(ch)            // → {x, y} of first occurrence, or null
+G.countCell(ch)           // → total count of that char in the map
+G.randomEmpty()           // → {x, y} of a random passable tile
+G.dirFromKey(key)         // → {dx, dy} from an arrow key, or null
+G.borderedMap(cols, rows) // → string[] with # walls and . floor
+\`\`\`
+
+### Draw Helpers (use inside onDraw)
+\`\`\`js
+G.text(x, y, str, color = '#fff', size = 14) // draw text at pixel coords
+G.fillTile(tx, ty, color)                    // fill a tile by grid coords
+\`\`\`
+Canvas pixel dimensions: \`G.cols * G.tileSize\` × \`G.rows * G.tileSize\`.
+
+### Sound
+\`\`\`js
+G.beep(freq = 440, dur = 0.1, type = 'square', vol = 0.3)
+\`\`\`
+Plays a synthesized tone via the Web Audio API. Parameters:
+- \`freq\` — pitch in Hz (e.g. 220 = low, 440 = mid, 880 = high)
+- \`dur\` — duration in seconds (e.g. 0.05 = blip, 0.3 = long)
+- \`type\` — waveform: \`'square'\` (retro, default), \`'sine'\` (smooth bell), \`'sawtooth'\` (harsh buzz), \`'triangle'\` (soft)
+- \`vol\` — volume 0–1 (default 0.3)
+
+Common patterns:
+\`\`\`js
+G.beep(660, 0.1)               // coin / collect (mid blip)
+G.beep(880, 0.25, 'sine')      // win / level clear (pleasant bell)
+G.beep(440, 0.08, 'square')    // shoot / action
+G.beep(220, 0.12, 'sawtooth')  // hit / explode
+G.beep(110, 0.3, 'sawtooth')   // death / game over (low buzz)
+G.beep(440, 0.05)              // soft tick / step
+\`\`\`
+Call \`G.beep()\` inside \`onKey\` or \`onUpdate\` at the moment the event occurs. Never call it inside \`onDraw\` (it runs every frame).
+
+### Start / Stop
+\`\`\`js
+G.start(); // begin the game loop — always call this last
+G.stop();  // pause
+\`\`\`
+
+---
+
+## Constraints & Best Practices
+
+- **Keep code short** — it is encoded into a QR code URL. Under 800 chars gives a clean QR; over 2000 chars makes it very dense.
+- Store all mutable state in \`G.state\` (not top-level \`let\`/\`var\`). This avoids re-declaration errors on re-run.
+- Define every character you place in \`G.map\` inside \`G.tiles\`, or use \`' '\` (space) for empty.
+- In \`onDraw\`, the canvas is already cleared to black and tiles are already drawn. Use \`ctx\` directly for custom shapes.
+- \`G.map\` is an array of strings — mutate individual cells via \`G.setCell\`, not by reassigning strings.
+- Call \`G.start()\` exactly once, at the very end of your code.
+- **Game-over / restart**: Use a \`reset()\` function that re-initializes \`G.state\` fields (and rebuilds \`G.map\` if needed). Check the dead state at the top of \`onKey\` and call \`reset()\` on any key.
+\`\`\`js
+function reset() { G.map = G.borderedMap(20,15); s.x=10; s.y=7; s.alive=true; s.score=0; }
+reset();
+G.onKey = key => { if (!s.alive) { reset(); return; } /* normal input here */ };
+\`\`\`
+
+---
+
+## Example 1 — Player movement on a walled map
+\`\`\`js
+G.init({ cols: 20, rows: 15, tileSize: 24, fps: 15 });
+G.tiles = {
+  '#': { bg: '#446', passable: false },
+  '.': { bg: '#111' },
+  '@': { bg: '#111', fg: '#4af', ch: '@' },
+};
+G.map = G.borderedMap(20, 15);
+const s = G.state;
+s.x = 10; s.y = 7;
+G.setCell(s.x, s.y, '@');
+G.onKey = key => {
+  const d = G.dirFromKey(key);
+  if (!d) return;
+  const nx = s.x + d.dx, ny = s.y + d.dy;
+  if (!G.isPassable(nx, ny)) return;
+  G.setCell(s.x, s.y, '.');
+  s.x = nx; s.y = ny;
+  G.setCell(s.x, s.y, '@');
+};
+G.start();
+\`\`\`
+
+## Example 2 — Collectibles with a win condition
+\`\`\`js
+G.init({ cols: 20, rows: 15, tileSize: 24, fps: 15 });
+G.tiles = {
+  '#': { bg: '#334', passable: false },
+  '.': { bg: '#111' },
+  '@': { bg: '#111', fg: '#4af', ch: '@' },
+  '*': { bg: '#111', fg: '#fd0', ch: '*' },
+};
+G.map = G.borderedMap(20, 15);
+const s = G.state;
+s.x = 1; s.y = 1;
+G.setCell(1, 1, '@');
+[[3,3],[7,5],[12,8],[16,2],[5,12]].forEach(([x,y]) => G.setCell(x, y, '*'));
+s.total = G.countCell('*');
+s.coins = 0;
+G.onKey = key => {
+  const d = G.dirFromKey(key);
+  if (!d) return;
+  const nx = s.x + d.dx, ny = s.y + d.dy;
+  if (!G.isPassable(nx, ny)) return;
+  G.setCell(s.x, s.y, '.');
+  if (G.getCell(nx, ny) === '*') s.coins++;
+  s.x = nx; s.y = ny;
+  G.setCell(s.x, s.y, '@');
+};
+G.onDraw = () => {
+  const won = s.coins === s.total;
+  G.text(4, 4, won ? 'YOU WIN!' : \`Coins: \${s.coins}/\${s.total}\`, won ? '#4f4' : '#fff', 13);
+};
+G.start();
+\`\`\`
+
+## Example 3 — Frame-based animation with custom canvas drawing
+\`\`\`js
+G.init({ cols: 16, rows: 12, tileSize: 24, fps: 20 });
+const s = G.state;
+const W = G.cols * G.tileSize, H = G.rows * G.tileSize;
+s.balls = Array.from({length: 5}, () => ({
+  x: Math.random() * W, y: Math.random() * H,
+  vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6,
+}));
+G.onUpdate = () => {
+  s.balls.forEach(b => {
+    b.x += b.vx; b.y += b.vy;
+    if (b.x < 0 || b.x > W) b.vx *= -1;
+    if (b.y < 0 || b.y > H) b.vy *= -1;
+  });
+};
+G.onDraw = ctx => {
+  s.balls.forEach((b, i) => {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 12, 0, Math.PI * 2);
+    ctx.fillStyle = ['#f64','#4af','#fd0','#4f4','#d4f'][i];
+    ctx.fill();
+  });
+};
+G.start();
+\`\`\`
+
+---
+
+When the user asks you to build a game: always end with \`G.start()\`, store all state in \`G.state\`, define every map character in \`G.tiles\`, and keep the code as short as possible so it fits in a QR code. Include a \`reset()\` function and any-key restart whenever the game has a game-over or win state.`;
+
+  function copyAIPrompt() {
+    const btn = document.getElementById('ai-btn');
+    const done = () => {
+      btn.textContent = '✓ Copied!';
+      setTimeout(() => { btn.textContent = 'Copy AI Instructions'; }, 2000);
+    };
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(AI_PROMPT).then(done).catch(() => legacyCopy(AI_PROMPT, done));
+    } else {
+      legacyCopy(AI_PROMPT, done);
+    }
+  }
+
+  // Load maze example on first open
+  loadExample('flappy');
+</script>
+</body>
+</html>

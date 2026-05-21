@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>GameQR</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0a0a0a;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100dvh;
+      font-family: monospace;
+      color: #fff;
+      overflow: hidden;
+    }
+    #game {
+      display: block;
+      image-rendering: pixelated;
+      max-width: 100vw;
+      max-height: 100dvh;
+    }
+    #error {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #f66;
+      padding: 24px;
+      max-width: 100%;
+      text-align: center;
+      line-height: 1.6;
+    }
+    #error[hidden] { display: none; }
+    #error h2 { margin-bottom: 12px; color: #f44; }
+    #error pre {
+      margin-top: 12px;
+      background: #1a1a1a;
+      padding: 12px;
+      border-radius: 4px;
+      text-align: left;
+      font-size: 12px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    #error a { color: #4af; }
+
+    /* ── Overlay ─────────────────────────────────────────────────────── */
+    #overlay {
+      position: fixed;
+      inset: 0;
+      background: #0a0a0a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    #overlay.gone { display: none; }
+
+    /* Start screen */
+    #start-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 32px 24px;
+    }
+    #game-title {
+      font-size: 52px;
+      font-weight: bold;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      margin-bottom: 10px;
+    }
+    #game-brand {
+      font-size: 11px;
+      color: #3a3a3a;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      margin-bottom: 52px;
+    }
+    #start-btn {
+      background: #1f6feb;
+      color: #fff;
+      border: none;
+      padding: 15px 56px;
+      font-family: monospace;
+      font-size: 18px;
+      border-radius: 8px;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: background 100ms;
+    }
+    #start-btn:hover, #start-btn:active { background: #388bfd; }
+
+    /* Warning screen */
+    #warn-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 32px 24px;
+      max-width: 340px;
+    }
+    #warn-icon { font-size: 48px; margin-bottom: 18px; }
+    #warn-screen h2 { color: #f0883e; font-size: 20px; margin-bottom: 12px; }
+    #warn-screen p {
+      color: #6e7681;
+      font-size: 13px;
+      line-height: 1.7;
+      margin-bottom: 0;
+    }
+    #warn-screen .copy-link { margin-top: 8px; margin-bottom: 28px; }
+    .copy-link {
+      color: #4af;
+      font-size: 12px;
+      text-decoration: none;
+      cursor: pointer;
+      margin-top: 14px;
+    }
+    .copy-link:hover { text-decoration: underline; }
+    #warn-btns { display: flex; gap: 10px; }
+    #cancel-btn {
+      background: #161b22;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      padding: 12px 26px;
+      font-family: monospace;
+      font-size: 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 80ms;
+    }
+    #cancel-btn:hover { background: #21262d; }
+    #run-btn {
+      background: #f0883e;
+      color: #fff;
+      border: none;
+      padding: 12px 26px;
+      font-family: monospace;
+      font-size: 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      letter-spacing: 0.04em;
+      transition: background 100ms;
+    }
+    #run-btn:hover, #run-btn:active { background: #f5a060; }
+
+    /* ── D-pad ───────────────────────────────────────────────────────── */
+    #dpad {
+      display: none;
+      position: fixed;
+      bottom: 28px;
+      left: 28px;
+      width: 162px;
+      height: 162px;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 3px;
+      z-index: 10;
+      touch-action: none;
+      -webkit-touch-callout: none;
+      user-select: none;
+    }
+    #dpad.pos-center { left: 50%; right: auto; transform: translateX(-50%); }
+    #dpad.pos-right  { right: 28px; left: auto; transform: none; }
+    #game-controls {
+      display: none;
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 20;
+      gap: 5px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      padding: 4px;
+    }
+    #game-controls button {
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(255,255,255,0.18);
+      color: rgba(255,255,255,0.65);
+      font-family: monospace;
+      font-size: 11px;
+      padding: 5px 9px;
+      border-radius: 6px;
+      cursor: pointer;
+      touch-action: manipulation;
+      user-select: none;
+    }
+    #game-controls button.muted { color: rgba(255,255,255,0.30); }
+    .dp-corner { border-radius: 6px; }
+    .dp-arm {
+      background: rgba(255,255,255,0.09);
+      border: 1.5px solid rgba(255,255,255,0.16);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: rgba(255,255,255,0.45);
+      font-size: 20px;
+      transition: background 80ms, color 80ms;
+    }
+    .dp-mid {
+      background: rgba(255,255,255,0.04);
+      border: 1.5px solid rgba(255,255,255,0.08);
+      border-radius: 6px;
+    }
+    .dp-arm.active {
+      background: rgba(255,255,255,0.28);
+      color: rgba(255,255,255,0.95);
+      border-color: rgba(255,255,255,0.4);
+    }
+    @media (hover: none) and (pointer: coarse) {
+      body.game-ready #dpad { display: grid; }
+      body.game-ready #game-controls { display: flex; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+  <div id="error" hidden></div>
+
+  <div id="overlay">
+    <div id="start-screen">
+      <div id="game-title"></div>
+      <div id="game-brand">GameQR</div>
+      <button id="start-btn">&#9654; Start</button>
+      <a id="copy-start-link" class="copy-link">Copy code to inspect</a>
+    </div>
+    <div id="warn-screen">
+      <div id="warn-icon">&#9888;</div>
+      <h2>Untrusted Code</h2>
+      <p>Runs arbitrary JavaScript. Start if you trust the source.</p>
+      <a id="copy-code-link" class="copy-link">Copy code to inspect</a>
+      <div id="warn-btns">
+        <button id="cancel-btn">Cancel</button>
+        <button id="run-btn">&#9654; Start</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="game-controls">
+    <button id="dpad-pos" aria-label="D-pad position"></button>
+    <button id="sound-btn" aria-label="Sound toggle"></button>
+  </div>
+
+  <div id="dpad">
+    <div class="dp-corner"></div>
+    <div class="dp-arm" id="dp-up">&#9650;</div>
+    <div class="dp-corner"></div>
+    <div class="dp-arm" id="dp-left">&#9664;</div>
+    <div class="dp-mid"></div>
+    <div class="dp-arm" id="dp-right">&#9654;</div>
+    <div class="dp-corner"></div>
+    <div class="dp-arm" id="dp-down">&#9660;</div>
+    <div class="dp-corner"></div>
+  </div>
+
+  <script src="lz-string.min.js"></script>
+  <script src="engine.js?v=3"></script>
+  <script src="examples.js?v=9"></script>
+  <script>
+    function fnv32(str) {
+      let h = 2166136261;
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 16777619) >>> 0;
+      }
+      return h.toString(16);
+    }
+
+    const overlay     = document.getElementById('overlay');
+    const startScreen = document.getElementById('start-screen');
+    const warnScreen  = document.getElementById('warn-screen');
+
+    function showError(title, detail) {
+      overlay.classList.add('gone');
+      const el = document.getElementById('error');
+      el.hidden = false;
+      el.innerHTML = `<h2>${title}</h2>${detail}`;
+      document.getElementById('game').hidden = true;
+    }
+
+    function launchGame(code) {
+      overlay.classList.add('gone');
+      document.body.classList.add('game-ready');
+      try {
+        new Function('G', code)(G);
+      } catch (e) {
+        showError('Game error', `<pre>${e.stack || e.message}</pre>`);
+      }
+    }
+
+    const rawHash = location.hash.slice(1);
+
+    if (!rawHash) {
+      overlay.classList.add('gone');
+      showError('No game loaded', `
+        <p>Scan a GameQR code or open a game URL.</p>
+        <p style="margin-top:12px"><a href="editor.html">Open the editor &rarr;</a></p>
+      `);
+    } else {
+      const code = GCode.decode(rawHash);
+      const h = fnv32(code);
+
+      let knownName = null;
+      for (const g of Object.values(GAME_EXAMPLES)) {
+        if (fnv32(g.code) === h) { knownName = g.name; break; }
+      }
+
+      if (knownName) {
+        document.title = knownName + ' — GameQR';
+        document.getElementById('game-title').textContent = knownName;
+        document.getElementById('start-btn').addEventListener('click', () => launchGame(code));
+        document.addEventListener('keydown', e => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); launchGame(code); }
+        }, { once: true });
+        const copyStartLink = document.getElementById('copy-start-link');
+        copyStartLink.addEventListener('click', () => {
+          navigator.clipboard.writeText(code).then(() => {
+            copyStartLink.textContent = 'Copied!';
+            setTimeout(() => { copyStartLink.textContent = 'Copy code to inspect'; }, 2000);
+          });
+        });
+      } else {
+        startScreen.style.display = 'none';
+        warnScreen.style.display  = 'flex';
+        document.getElementById('run-btn').addEventListener('click', () => launchGame(code));
+        document.getElementById('cancel-btn').addEventListener('click', () => {
+          location.href = 'play.html';
+        });
+        const copyLink = document.getElementById('copy-code-link');
+        copyLink.addEventListener('click', () => {
+          navigator.clipboard.writeText(code).then(() => {
+            copyLink.textContent = 'Copied!';
+            setTimeout(() => { copyLink.textContent = 'Copy code to inspect'; }, 2000);
+          });
+        });
+      }
+    }
+  </script>
+  <script>
+    (function () {
+      const dpad = document.getElementById('dpad');
+      if (!dpad) return;
+
+      const ARMS = {
+        ArrowUp:    document.getElementById('dp-up'),
+        ArrowDown:  document.getElementById('dp-down'),
+        ArrowLeft:  document.getElementById('dp-left'),
+        ArrowRight: document.getElementById('dp-right'),
+      };
+      const HOLD_DELAY = 350, REPEAT_MS = 130;
+      let holdTimer, repeatTimer, activeKey = null;
+
+      function getKey(e) {
+        const t = (e.touches || e.changedTouches)[0];
+        const r = dpad.getBoundingClientRect();
+        const dx = t.clientX - (r.left + r.width  / 2);
+        const dy = t.clientY - (r.top  + r.height / 2);
+        if (Math.abs(dx) < r.width * 0.12 && Math.abs(dy) < r.height * 0.12) return null;
+        return Math.abs(dx) > Math.abs(dy)
+          ? (dx > 0 ? 'ArrowRight' : 'ArrowLeft')
+          : (dy > 0 ? 'ArrowDown'  : 'ArrowUp');
+      }
+
+      function setActive(key) {
+        Object.entries(ARMS).forEach(([k, el]) => el.classList.toggle('active', k === key));
+      }
+
+      function startKey(key) {
+        if (key === activeKey) return;
+        clearTimeout(holdTimer);
+        clearInterval(repeatTimer);
+        activeKey = key;
+        setActive(key);
+        if (!key) return;
+        if (G.onKey) G.onKey(key);
+        holdTimer = setTimeout(() => {
+          repeatTimer = setInterval(() => { if (activeKey && G.onKey) G.onKey(activeKey); }, REPEAT_MS);
+        }, HOLD_DELAY);
+      }
+
+      function stop() {
+        clearTimeout(holdTimer);
+        clearInterval(repeatTimer);
+        activeKey = null;
+        setActive(null);
+      }
+
+      dpad.addEventListener('touchstart',  e => { e.preventDefault(); startKey(getKey(e)); }, { passive: false });
+      dpad.addEventListener('touchmove',   e => { e.preventDefault(); startKey(getKey(e)); }, { passive: false });
+      dpad.addEventListener('touchend',    e => { e.preventDefault(); stop(); },              { passive: false });
+      dpad.addEventListener('touchcancel', () => stop());
+      dpad.addEventListener('contextmenu', e => e.preventDefault());
+      dpad.addEventListener('selectstart', e => e.preventDefault());
+    })();
+  </script>
+  <script>
+    (function () {
+      const dpad = document.getElementById('dpad');
+      const btn  = document.getElementById('dpad-pos');
+      if (!btn) return;
+      const POS   = ['left', 'center', 'right'];
+      const LABEL = ['D-pad ◄', 'D-pad ▪', 'D-pad ►'];
+      let idx = parseInt(localStorage.getItem('dpadPos') || '0', 10);
+      if (idx < 0 || idx > 2) idx = 0;
+
+      function apply() {
+        dpad.classList.remove('pos-center', 'pos-right');
+        if (idx === 1) dpad.classList.add('pos-center');
+        if (idx === 2) dpad.classList.add('pos-right');
+        btn.textContent = LABEL[idx];
+      }
+      apply();
+
+      btn.addEventListener('click', () => {
+        idx = (idx + 1) % 3;
+        localStorage.setItem('dpadPos', idx);
+        apply();
+      });
+    })();
+  </script>
+  <script>
+    (function () {
+      const btn = document.getElementById('sound-btn');
+      if (!btn) return;
+      const _beep = G.beep.bind(G);
+      let muted = localStorage.getItem('gameMuted') === '1';
+
+      function apply() {
+        G.beep = muted ? () => {} : _beep;
+        btn.textContent = muted ? '♪ off' : '♪ on';
+        btn.classList.toggle('muted', muted);
+      }
+      apply();
+
+      btn.addEventListener('click', () => {
+        muted = !muted;
+        localStorage.setItem('gameMuted', muted ? '1' : '0');
+        apply();
+      });
+    })();
+  </script>
+</body>
+</html>
